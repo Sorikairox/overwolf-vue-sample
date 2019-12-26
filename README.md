@@ -1,4 +1,4 @@
-# Overwolf sample app
+# Overwolf VUE sample app
 
 This repository contains a sample app that demonstrates some basic points and flows that are relevant when developing Overwolf apps:
 
@@ -7,11 +7,33 @@ This repository contains a sample app that demonstrates some basic points and fl
 - Define a custom hotkey to be used in-game
 - Communication between the app windows according to our best practices 
 
+
+## Do I use yarn or npm ?
+
+**Yarn** plz.
+
+## How does this work ?
+
+Each windows is a standalone vue project that build itself in the **`native`** folder that is reserved for :
+
+- Shared assets such as `css` and `img`
+- Overwolf's required files such as `manifest.json `
+
+
+## How install
+Launch `install.sh` script
+
+
+## How build vue into native overwolf folder
+Launch `build-all.sh` script to build all, or` yarn build` into the windows project you want to build.
+
+
 ## How to load the app
 Under Overwolf's settings, choose Support tab and then Development options. Click the Load unpacked button and choose the native folder of this repository.
 
-## Notes
-Editing the author or app name in the manifest will prevent loading the app
-as unpacked app.
+## Improvements
+There is many things to improve :
 
-For any further information or questions about, contact developers@overwolf.com
+- Code duplication for headerbar, can be a vue library
+- `yarn serve` cannot be used without using `.env ` files to load css and img from a `public/(css||img)` folder that is a symbolic link to `native/(css||img)`. Without that, design is broken due to `img` and `css` shared folder not loading.
+- Probably more things because I'm not perfect.
