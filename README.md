@@ -19,6 +19,7 @@ Each windows is a standalone vue project that build itself in the **`native`** f
 - Shared assets such as `css` and `img`
 - Overwolf's required files such as `manifest.json `
 
+You have to build and run it through Overwolf to test, otherwise overwolf's api is not available and assets loading path is wrong (see improvements list below).
 
 ## How install
 Launch `install.sh` script
@@ -35,5 +36,5 @@ Under Overwolf's settings, choose Support tab and then Development options. Clic
 There is many things to improve :
 
 - Code duplication for headerbar, can be a vue library
-- `yarn serve` cannot be used without using `.env ` files to load css and img from a `public/(css||img)` folder that is a symbolic link to `native/(css||img)`. Without that, design is broken due to `img` and `css` shared folder not loading.
+- `yarn serve` cannot be used without using `.env ` files to load css and img from a `public/(css||img)` folder that is a symbolic link to `native/(css||img)`. Without that, design is broken due to `img` and `css` shared folder not loading. We should load asset using an env variable for base path.
 - Probably more things because I'm not perfect.
