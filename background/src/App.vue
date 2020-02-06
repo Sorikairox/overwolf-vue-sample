@@ -1,196 +1,69 @@
 <template>
 </template>
 
-<script>
+<script lang="ts">
+    import { Component, Vue } from 'vue-property-decorator';
+    import { windowNames, fortniteClassId } from "../../shared/constants/consts";
+    import { OWGames } from '../../shared/libs/ow-games';
+    import { OWGameListener } from '../../shared/libs/ow-game-listener';
+    import { OWWindow } from '../../shared/libs/ow-window';
+    // @ts-ignore
+    import RunningGameInfo = overwolf.games.RunningGameInfo;
+    // The background controller holds all of the app's background logic - hence its name. it has
+    // many possible use cases, for example sharing data between windows, or, in our case,
+    // managing which window is currently presented to the user. To that end, it holds a dictionary
+    // of the windows available in the app.
+    // Our background controller implements the Singleton design pattern, since only one
+    // instance of it should exist.
+    @Component
+    export default class App extends Vue {
+        private _windows = {};
+        private _fortniteGameListener: OWGameListener;
 
-  import WindowsService from '../../shared/libs/windows-service';
-  import runningGameService from '../../shared/libs/running-game-service';
-  import WindowNames from '../../shared/constants/window-names';
-  import hotkeysService from '../../shared/libs/hotkeys-service';
-  import gepService from '../../shared/libs/gep-service';
-  import eventBus from '../../shared/libs/event-bus';
+        mounted() {
+            // Populating the background controller's window dictionary
+            this._windows[windowNames.desktop] = new OWWindow(windowNames.desktop);
+            this._windows[windowNames.inGame] = new OWWindow(windowNames.inGame);
 
-    export default {
-        name: 'app',
-        components: {
-        },
-     async created() {
-        // this will be available when calling overwolf.windows.getMainWindow()
-        window.ow_eventBus = eventBus;
-        window.minimize = this.minimize;
-
-        // Handle what happens when the app is launched while already running
-        // (relaunch)
-        this._registerAppLaunchTriggerHandler();
-        // Register handlers to hotkey events
-        this._registerHotkeys();
-
-        await this._restoreLaunchWindow();
-
-        // Switch between desktop/in-game windows when launching/closing game
-        runningGameService.addGameRunningChangedListener(
-                this._onRunningGameChanged
-        );
-
-        // Listen to changes in windows
-        overwolf.windows.onStateChanged.addListener(async () => {
-          // If there's only 1 window (background) open, close the app
-          const openWindows = await WindowsService.getOpenWindows();
-          if (Object.keys(openWindows).length <= 1) {
-            window.close();
-          }
-        });
-      },
-      methods: {
-        /**
-         * Minimize all app windows
-         * @public
-         */
-        async minimize() {
-            const openWindows = await WindowsService.getOpenWindows();
-            for (let windowName in openWindows) {
-                await WindowsService.minimize(windowName);
-            }
-        }
-
-        /**
-         * Handle game opening/closing
-         * @private
-         */
-        , async _onRunningGameChanged(isGameRunning) {
-            if (isGameRunning) {
-                // Register to game events
-                gepService.registerToGEP(
-                    this.onGameEvents,
-                    this.onInfoUpdate
-                );
-                // Open in-game window
-                await WindowsService.restore(WindowNames.IN_GAME);
-                // Close desktop window
-                WindowsService.close(WindowNames.DESKTOP);
-            } else {
-                // Open desktop window
-                await WindowsService.restore(WindowNames.DESKTOP);
-                // Close in-game window
-                WindowsService.close(WindowNames.IN_GAME);
-            }
-        }
-
-        /**
-         * Open the relevant window on app launch
-         * @private
-         */
-        , async _restoreLaunchWindow() {
-            // Obtain windows and set their sizes:
-            // Desktop:
-            const desktopWindowName = await WindowsService.getStartupWindowName();
-            const desktopWindow = await WindowsService.obtainWindow(
-                desktopWindowName
-            );
-            await WindowsService.changeSize(desktopWindow.window.id, 1200, 659);
-            await WindowsService.changePositionCenter(desktopWindowName);
-            // In-Game:
-            const inGameWindow = await WindowsService.obtainWindow(
-                WindowNames.IN_GAME
-            );
-            await WindowsService.changeSize(inGameWindow.window.id, 1641, 692);
-
-            const isGameRunning = await runningGameService.isGameRunning();
-
-            // Determine which window (desktop/in-game) to display when app is launched
-            if (!isGameRunning) {
-                // Game isn't runnig, display desktop window
-                WindowsService.restore(desktopWindowName);
-            } else {
-                // Register to game events
-                gepService.registerToGEP(
-                    this.onGameEvents,
-                    this.onInfoUpdate
-                );
-                // Display in-game window
-                await WindowsService.restore(WindowNames.IN_GAME);
-                WindowsService.minimize(WindowNames.IN_GAME);
-            }
-        }
-
-        /**
-         * Display notification
-         * @private
-         */
-        , async _displayNotification(title, message, time) {
-            const data = {title, message, time};
-            const notificationWindow = await WindowsService.obtainWindow(
-                WindowNames.NOTIFICATION
-            );
-
-            await WindowsService.changeSize(WindowNames.NOTIFICATION, 320, 260);
-            await WindowsService.changePositionCenter(WindowNames.NOTIFICATION);
-
-            // Display notification
-            await WindowsService.restore(WindowNames.NOTIFICATION);
-            // Start notification timer
-            // We use a timeout to give the notification controller time to register
-            // to the event bus.
-            setTimeout(() => {
-                window.ow_eventBus.trigger("notification", data);
-            }, 1000);
-        }
-
-        /**
-         * handles app launch trigger event - i.e dock icon clicked
-         * @private
-         */
-        , _registerAppLaunchTriggerHandler() {
-            overwolf.extensions.onAppLaunchTriggered.removeListener(
-                this._onAppRelaunch
-            );
-            overwolf.extensions.onAppLaunchTriggered.addListener(
-                this._onAppRelaunch
-            );
-        }
-
-        , _onAppRelaunch() {
-            WindowsService.restore(WindowNames.DESKTOP);
-        }
-
-        /**
-         * set custom hotkey behavior
-         * @private
-         */
-        , _registerHotkeys() {
-            hotkeysService.setToggleHotkey(async () => {
-                let state = await WindowsService.getWindowState(WindowNames.IN_GAME);
-                if (state === "minimized" || state === "closed") {
-                    WindowsService.restore(WindowNames.IN_GAME);
-                } else if (state === "normal" || state === "maximized") {
-                    WindowsService.minimize(WindowNames.IN_GAME);
-                }
+            // When a Fortnite game is started or is ended, toggle the app's windows
+            this._fortniteGameListener = new OWGameListener({
+                onGameStarted: this.toggleWindows.bind(this),
+                onGameEnded: this.toggleWindows.bind(this)
             });
+        };
+
+        // When running the app, start listening to games' status and decide which window should
+        // be launched first, based on whether Fortnite is currently running
+       async created() {
+            this._fortniteGameListener.start();
+            const currWindow = await this.isFortniteRunning() ? windowNames.inGame : windowNames.desktop;
+            this._windows[currWindow].restore();
         }
 
-        /**
-         * Pass events to windows that are listening to them
-         * @private
-         */
-        , onGameEvents(data) {
-            console.log(data);
-            for (let event of data.events) {
-                console.log(JSON.stringify(event));
-                window.ow_eventBus.trigger("event", event);
-                if (event.name === "matchStart") {
-                    WindowsService.restore(WindowNames.IN_GAME);
-                }
+        private toggleWindows(info) {
+            if (!info || !this.isGameFortnite(info)) {
+                return;
+            }
+
+            if (info.isRunning) {
+                this._windows[windowNames.desktop].close();
+                this._windows[windowNames.inGame].restore();
+            } else {
+                this._windows[windowNames.inGame].close();
+                this._windows[windowNames.desktop].restore();
             }
         }
 
-        /**
-         * Pass info updates to windows that are listening to them
-         * @privates
-         */
-        , onInfoUpdate(data) {
-            window.ow_eventBus.trigger("info", data);
+        private async isFortniteRunning(): Promise<boolean> {
+            const info = await OWGames.getRunningGameInfo();
+
+            return info && info.isRunning && this.isGameFortnite(info);
         }
-    }
+
+        // Identify whether the RunningGameInfo object we have references Fortnite
+        private isGameFortnite(info: RunningGameInfo) {
+            return info.classId === fortniteClassId;
+        }
     }
 </script>
 
