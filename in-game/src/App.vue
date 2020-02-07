@@ -39,42 +39,45 @@
 <!--        </div>-->
 </template>
 
-<script>
+<script lang="ts">
 
-    import HotkeysService from '../../shared/libs/hotkeys-service';
-    import DragService from "../../shared/libs/drag-service";
+    import {Component, Vue} from "vue-property-decorator";
+    import {OWGamesEvents} from "../../shared/libs/ow-games-events";
+    import {hotkeys, interestingFeatures, windowNames} from "../../shared/constants/consts";
+    import {OWHotkeys} from "../../shared/libs/ow-hotkeys";
+    import {OWWindow} from "../../shared/libs/ow-window";
+    // @ts-ignore
+    let WindowState = overwolf.windows.WindowState;
 
-    export default {
-        name: 'app',
-        components: {},
-        data: () => {
-            return ({
-                infos: [],
-                events: [],
-                hotkey: '',
-            });
-        },
-        created() {
-            // Background window:
-            this._backgroundWindow = overwolf.windows.getMainWindow();
-            // Page elements:
-            this._modal = document.getElementById("exitMinimizeModal");
-            this._closeButton = document.getElementById("closeButton");
-            this._minimizeHeaderButton = document.getElementById("minimizeButton");
-            this._exitButton = document.getElementById("exit");
-            this._minimizeButton = document.getElementById("minimize");
-            this._header = document.getElementsByClassName("app-header")[0];
-            this._version = document.getElementById("version");
-            // listen to events from the event bus from the main window,
-            // the callback will be run in the context of the current window
-            let mainWindow = overwolf.windows.getMainWindow();
-            mainWindow.ow_eventBus.addListener(this._eventListener);
+    @Component
+    export default class App extends Vue{
+        private _gameEventsListener: OWGamesEvents;
+        private _eventsLog: HTMLElement;
+        private _infoLog: HTMLElement;
+        public events: Array<any> = [];
+        public infos: Array<any> = [];
+        _backgroundWindow: OWWindow;
+        currWindow: OWWindow;
+        _modal: HTMLElement;
+        _closeButton: HTMLElement;
+        _minimizeHeaderButton: HTMLElement;
+        _exitButton: HTMLElement;
+        _minimizeButton: HTMLElement;
+        _header: HTMLElement;
+        _version: HTMLElement;
 
-            // Update hotkey view and listen to changes:
-            this._updateHotkey();
-            HotkeysService.addHotkeyChangeListener(this._updateHotkey);
-        },
+        _showExitMinimizeModal() {
+            this._modal.style.display = "block";
+        }
+        _hideExitMinimizeModal() {
+            this._modal.style.display = "none";
+        }
         mounted() {
+            this._eventsLog = document.getElementById('eventsLog');
+            this._infoLog = document.getElementById('infoLog');
+
+            this.setToggleHotkeyBehavior();
+            this.setToggleHotkeyText();
             // Listen to X button click
             this._closeButton.addEventListener("click", this._showExitMinimizeModal);
             // Listen to minimize click
@@ -96,62 +99,66 @@
                     this._hideExitMinimizeModal();
                 }
             };
-            // Enable dragging on this window
-            overwolf.windows.getCurrentWindow(result => {
-                this.dragService = new DragService(result.window, this._header);
-            });
-            // Display version
-            overwolf.extensions.current.getManifest(manifest => {
-                if (!this._version) {
-                    return;
-                }
-                this._version.textContent = `Version ${manifest.meta.version}`;
-            });
-        },
-        methods: {
-            async _updateHotkey() {
-                const hotkey = await HotkeysService.getToggleHotkey();
-                this.hotkey = hotkey;
-            },
+            this.currWindow.dragMove(this._header);
 
-            _eventListener(eventName, data) {
-                switch (eventName) {
-                    case 'event': {
-                        this._gameEventHandler(data);
-                        break;
-                    }
-                    case 'info': {
-                        this._infoUpdateHandler(data);
-                        break;
-                    }
-                }
-            },
-
-            // Logs events
-            _gameEventHandler(event) {
-                let isHightlight = false;
-                switch (event.name) {
-                    case 'kill':
-                    case 'death':
-                    case 'matchStart':
-                    case 'matchEnd':
-                        isHightlight = true;
-                }
-                this.events.push(JSON.stringify(event));
-            },
-
-            // Logs info updates
-            _infoUpdateHandler(infoUpdate) {
-                this.infos.push(JSON.stringify(infoUpdate));
-            },
-            _showExitMinimizeModal() {
-                this._modal.style.display = "block";
-            },
-            _hideExitMinimizeModal() {
-                this._modal.style.display = "none";
-            }
         }
 
+        public created() {
+            // Background window:
+            this._backgroundWindow = new OWWindow('background');
+            this.currWindow = new OWWindow('in_game');
+            // Page elements:
+            this._modal = document.getElementById("exitMinimizeModal");
+            this._closeButton = document.getElementById("closeButton");
+            this._minimizeHeaderButton = document.getElementById("minimizeButton");
+            this._exitButton = document.getElementById("exit");
+            this._minimizeButton = document.getElementById("minimize");
+            this._header = document.getElementsByClassName("app-header")[0] as HTMLElement;
+            this._version = document.getElementById("version");
+            this._gameEventsListener = new OWGamesEvents({
+                    onInfoUpdates: this.onInfoUpdates.bind(this),
+                    onNewEvents: this.onNewEvents.bind(this)
+                },
+                interestingFeatures);
+            this._gameEventsListener.start();
+        }
+
+        private onInfoUpdates(info) {
+          this.infos.push(info);
+        }
+
+        // Special events will be highlighted in the event log
+        private onNewEvents(e) {
+            this.events.push(e);
+        }
+
+        // Displays the toggle minimize/restore hotkey in the window header
+        private async setToggleHotkeyText() {
+            const hotkeyText = await OWHotkeys.getHotkeyText(hotkeys.toggle);
+            const hotkeyElem = document.getElementById('hotkey');
+            hotkeyElem.textContent = hotkeyText;
+        }
+
+        // Sets toggleInGameWindow as the behavior for the Ctrl+F hotkey
+        private async setToggleHotkeyBehavior() {
+            const toggleInGameWindow = async hotkeyResult => {
+                console.log(`pressed hotkey for ${hotkeyResult.featureId}`);
+                const inGameState = await this.getWindowState();
+
+                if (inGameState.window_state === WindowState.NORMAL ||
+                    inGameState.window_state === WindowState.MAXIMIZED) {
+                    this.currWindow.minimize();
+                } else if (inGameState.window_state === WindowState.MINIMIZED ||
+                    inGameState.window_state === WindowState.CLOSED) {
+                    this.currWindow.restore();
+                }
+            }
+
+            OWHotkeys.onHotkeyDown(hotkeys.toggle, toggleInGameWindow);
+        }
+        public async getWindowState() {
+            return await this.currWindow.getWindowState();
+        }
     }
 </script>
 <style>

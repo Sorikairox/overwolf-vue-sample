@@ -18,24 +18,25 @@
     @Component
     export default class App extends Vue {
         private _windows = {};
-        private _fortniteGameListener: OWGameListener;
+        private _gameListener: OWGameListener;
 
         mounted() {
+            this._windows = {};
             // Populating the background controller's window dictionary
             this._windows[windowNames.desktop] = new OWWindow(windowNames.desktop);
             this._windows[windowNames.inGame] = new OWWindow(windowNames.inGame);
 
-            // When a Fortnite game is started or is ended, toggle the app's windows
-            this._fortniteGameListener = new OWGameListener({
-                onGameStarted: this.toggleWindows.bind(this),
-                onGameEnded: this.toggleWindows.bind(this)
-            });
         };
 
         // When running the app, start listening to games' status and decide which window should
         // be launched first, based on whether Fortnite is currently running
        async created() {
-            this._fortniteGameListener.start();
+           // When a Fortnite game is started or is ended, toggle the app's windows
+           this._gameListener = new OWGameListener({
+               onGameStarted: this.toggleWindows.bind(this),
+               onGameEnded: this.toggleWindows.bind(this)
+           });
+            this._gameListener.start();
             const currWindow = await this.isFortniteRunning() ? windowNames.inGame : windowNames.desktop;
             this._windows[currWindow].restore();
         }

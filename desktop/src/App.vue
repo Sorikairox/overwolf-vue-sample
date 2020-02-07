@@ -8,24 +8,35 @@
     </div>
 </template>
 
-<script>
-  import DragService from "../../shared/libs/drag-service";
-export default {
-  name: 'app',
-  components: {
-  },
+<script lang="ts">
+
+import { OWWindow } from "../../shared/libs/ow-window";
+import {Component, Vue} from "vue-property-decorator";
+
+@Component
+export default class App extends Vue {
+    _backgroundWindow: OWWindow;
+    currWindow: OWWindow;
+    _modal: HTMLElement;
+    _closeButton: HTMLElement;
+    _minimizeHeaderButton: HTMLElement;
+    _exitButton: HTMLElement;
+    _minimizeButton: HTMLElement;
+    _header: HTMLElement;
+    _version: HTMLElement;
   created() {
     // Background window:
-    this._backgroundWindow = overwolf.windows.getMainWindow();
+      this._backgroundWindow = new OWWindow('background');
+      this.currWindow = new OWWindow('desktop');
     // Page elements:
     this._modal = document.getElementById("exitMinimizeModal");
     this._closeButton = document.getElementById("closeButton");
     this._minimizeHeaderButton = document.getElementById("minimizeButton");
     this._exitButton = document.getElementById("exit");
     this._minimizeButton = document.getElementById("minimize");
-    this._header = document.getElementsByClassName("app-header")[0];
+    this._header = document.getElementsByClassName("app-header")[0] as HTMLElement;
     this._version = document.getElementById("version");
-  },
+  }
   mounted() {
     // Listen to X button click
     this._closeButton.addEventListener("click", this._showExitMinimizeModal);
@@ -48,25 +59,14 @@ export default {
         this._hideExitMinimizeModal();
       }
     };
-    // Enable dragging on this window
-    overwolf.windows.getCurrentWindow(result => {
-      this.dragService = new DragService(result.window, this._header);
-    });
-    // Display version
-    overwolf.extensions.current.getManifest(manifest => {
-      if (!this._version) {
-        return;
-      }
-      this._version.textContent = `Version ${manifest.meta.version}`;
-    });
-    },
-  methods : {
+      this.currWindow.dragMove(this._header);
+    }
+
     _showExitMinimizeModal() {
       this._modal.style.display = "block";
-    },
+    }
     _hideExitMinimizeModal() {
       this._modal.style.display = "none";
     }
   }
-}
 </script>
