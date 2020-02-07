@@ -2,10 +2,10 @@
 
 This repository contains a sample app that demonstrates some basic points and flows that are relevant when developing Overwolf apps:
 
-- The app will launch automatically when League Of Legends starts
+- The app will launch automatically when Fornite starts
 - Register to the overwolf.games.events API in order to receive real time events from the game.
 - Define a custom hotkey to be used in-game
-- Communication between the app windows according to our best practices 
+- Based on official OW sample-app https://github.com/overwolf/sample-app
 
 
 ## Do I use yarn or npm ?
